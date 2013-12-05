@@ -1,0 +1,104 @@
+TempSensor Spec
+
+In normal mode (TEST_SIGNAL = 0), the sensor must load calibration data from EEPROM and obtain the receiver address efficiently.  The sensor must sleep for 60 seconds and then wake up to send sensor readings back to the receiver.  If possible (this isn't required), the sensor should detect whether the receiver successfully received its data.  If the sensor detects that the transmission failed, the sensor should send out a receiver request every 60 seconds until an acknowledgement packet from a receiver is received.
+
+In test/program mode (TEST_SIGNAL = 1), the sensor can be programmed over-the-air with such things as the factory ID.  The sensor should also obtain calibration data from the built-in calibration potentiometers every quarter-second.
+
+Technical details:
+
+Normal mode:
+	The sensor disables nMCLR and uses it as a GPIO pin instead.
+
+	Interrupt-on-change on pin nMCLR (RE3) should be enabled so that the sensor can do any sort of cleanup before reset.
+
+	The program should go through around 29 sleep cycles (2 second each), send off the report and sleep for the rest of the last sleep cylce before repeating the process.
+	
+Test/program mode:
+	The sensor should disable nMCLR and use it as a GPIO pin instead.
+
+	List of continuous task that the sensor needs to do in this mode:
+		It needs to scan the calibration potentiometers at least every quarter second.
+		
+		It needs to scan the UART buffer to see if a complete message has been received by the MCU.
+
+	UART receive interrupts should be enabled, and a software UART buffer should be implemented, allowing a complete message to be stored by the ISR before it gets handled by the communication code.
+
+	Interrupt-on-change on pin nMCLR (RE3) should be enabled so that the sensor can do any sort of needed cleanup before reset.
+
+	The test mode should have a rudimentary multitasking system.
+
+packets.h things
+
+Revision 0 Packet header:
+	0-1:  Magic number, 0x55AA big endian encoding.  Receiver ignores this, because packets and packet headers are required to be little endian.
+
+	2-3:  CRC16.  The CRC16 should be calculated with this field zeroed out.  The resulting CRC16 should then be put into this field.
+	4:  Revision byte.  Used to determine the layout of the other bytes.
+	5:  Command byte.  Used to determine what packet layout to expect.
+	6-7:  Reserved
+
+Revision 0 packets:
+	RECEIVER REQUEST (0x04):
+		Packet:
+			0-23:  Reserved for future use (revision 0)
+
+		This packet is used when a sensor does not have a receiver address.  The sensor broadcasts this and waits for a reply from a receiver, then sets the receiver address.
+
+	REPORT (0x00):
+		Packet:
+			0-1:  Probe resistance that is reported.
+			2-3:  Probe resistance at 25C.
+			4-5:  Beta (see NTC thermistor stuff on wikipedia.org for info) of probe.
+			6-7:  Impedance of top resistor (R1) of voltage divider.
+			8:  Xbee reset indicator.
+			9-23:  Reserved for future use
+
+Revision 1 packets go from 32 bytes total to 48 bytes total.
+Revision 1 Packet header:
+	0:  Flags
+		00000000:
+			0-7: reserved for future use.  All zeroes must be zero.
+
+	1:  Reserved for future use, should be 0.
+	2-3:  CRC16.  The CRC16 should be calculated with this field zeroed out.  The resulting CRC16 should then be put into this field.
+	4:  Revision byte.  Used to determine the layout of the other bytes.
+	5:  Command byte.  Used to determine what packet layout to expect.
+	6-7:  Reserved, should be 0.
+	8-15:  Sensor Id.
+
+Revision 1:
+	RECEIVER REQUEST (0x04):
+		Packet:
+			0-7:  Sensor ID.  If all bytes here are set to 0xFF, then that means that the receiver should query the web API for the next available sensor ID.
+
+			8-31:  Reserved
+
+	TEMP REPORT (0x00):
+		Packet:
+			0-3:  Probe0 resistance.  should be set to 0 if not valid.
+			4-7:  Probe1 resistance.  should be set to 0 if not valid.
+			8-11:  Probe2 resistance.  should be set to 0 if not valid.
+			12-15:  Shared probe resistance at 25C [1]
+			16-17:  Shared probe betas [1]
+			18-19:  Reserved
+			20-23:  Corresponding R1 resistance.
+			24-31:  Reserved
+
+	Notes:
+		1:  This may need to change in the future, but for now we want to keep it to 32 bytes.
+
+Packets sent to the sensor:
+	Revision 0:
+		RECEIVER ACK (0x04):
+			Packet:
+				0-7:  Receiver ID.
+				8-23:  Reserved.
+
+	Revision 1:
+		RECEIVER ACK (0x04):
+			Packet: [1]
+				0-7:  New sensor ID.  If this field in RECEIVER REQUEST is not 2^64 - 1, this is 0.
+				8-31:  Reserved
+
+			Notes:
+				1:  The address that the sensor needs to send to is included in the XBee frame (a separate, lower level protocol), which is why this packet doesn't need it.
