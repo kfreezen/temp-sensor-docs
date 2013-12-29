@@ -75,9 +75,9 @@ Revision 1:
 
 	TEMP REPORT (0x00):
 		Packet:
-			0-3:  Probe0 resistance.  should be set to 0 if not valid.
-			4-7:  Probe1 resistance.  should be set to 0 if not valid.
-			8-11:  Probe2 resistance.  should be set to 0 if not valid.
+			0-3:  Probe0 resistance.  should be set to 0 if not valid. [2]
+			4-7:  Probe1 resistance.  should be set to 0 if not valid. [2]
+			8-11:  Probe2 resistance.  should be set to 0 if not valid. [2]
 			12-15:  Shared probe resistance at 25C [1]
 			16-17:  Shared probe betas [1]
 			18-19:  Reserved
@@ -102,3 +102,11 @@ Packets sent to the sensor:
 
 			Notes:
 				1:  The address that the sensor needs to send to is included in the XBee frame (a separate, lower level protocol), which is why this packet doesn't need it.
+
+receiver implimentation rules:
+	IDs issued by a receiver should be x where 9 < x < 256.
+	IDs issued by a sensor should be x where 0 < x < 9.
+	Sensors should accept all IDs.  If an ID is greater than 8, modulo (or equivalent operation) it by 8 to get proper ID.
+	This way, receivers can have multiple sensors to share the same frame ID.
+
+RX Indicators do not preserve frame IDs.
