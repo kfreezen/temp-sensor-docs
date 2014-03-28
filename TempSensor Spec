@@ -54,10 +54,12 @@ Revision 0 packets:
 			9-23:  Reserved for future use
 
 Revision 1 packets go from 32 bytes total to 48 bytes total.
+If less than 48 bytes is received, assume the bytes not received are zeroes.
 Revision 1 Packet header:
 	0:  Flags
-		00000000:
-			0-7: reserved for future use.  All zeroes must be zero.
+		0000000C:
+			0:  Reserved for each command to use
+			1-7: reserved for future use.  All zeroes must be zero.
 
 	1:  Reserved for future use, should be 0.
 	2-3:  CRC16.  The CRC16 should be calculated with this field zeroed out.  The resulting CRC16 should then be put into this field.
@@ -74,19 +76,40 @@ Revision 1:
 			8-31:  Reserved
 
 	TEMP REPORT (0x00):
+		Header:
+			Flags:
+				bit 0:  Indicates which leg of the probe's voltage divider the probe is.  0 means that the voltage divider is the leg connected to ground.  1 means that the probe is the leg connected to Vdd.
 		Packet:
 			0-3:  Probe0 resistance.  should be set to 0 if not valid. [2]
 			4-7:  Probe1 resistance.  should be set to 0 if not valid. [2]
 			8-11:  Probe2 resistance.  should be set to 0 if not valid. [2]
 			12-15:  Shared probe resistance at 25C [1]
 			16-17:  Shared probe betas [1]
-			18-19:  Reserved
-			20-23:  Corresponding R1 resistance.
+			18-19:  Battery level in millivolts. [2]
+			20-23:  Corresponding R1 resistance. [3]
 			24-31:  Reserved
 
 	Notes:
 		1:  This may need to change in the future, but for now we want to keep it to 32 bytes.
+		2:  If a battery level divider is not on a sensor, this shall default to 6500 (6.5 volts), until Vdd starts to fall below nominal Vdd - 0.2V.  Then, Vdd - 0.2V shall be used.
+		3:  I don't believe this is used in our receiver side calculations.  May be removed at a later date.
 
+	ERROR REPORT (0x01):
+		This packet is used to notify the receiver that something has not gone as it should on the sensor.
+
+		Header:
+			Flags:
+				bit 0:  Reserved
+		Packet:
+			0-1:  Error number.
+			2-5:  Error specific data.
+			6-31:  Reserved.
+
+		Currently defined error numbers:
+			0x0000:  SUCCESS:  This should only be used during testing.
+			0x0001:  ADC_PVREF_TOO_LOW:  This must be sent when VREF+ does not arrive within 3.2% of 2.5V in 5 milliseconds.
+			0x0002:  ADC_CONVERSION_TIMEOUT:  This must be sent when a conversion is started, but does not end within 5 milliseconds.
+			
 Packets sent to the sensor:
 	Revision 0:
 		RECEIVER ACK (0x04):
@@ -97,7 +120,7 @@ Packets sent to the sensor:
 	Revision 1:
 		RECEIVER ACK (0x04):
 			Packet: [1]
-				0-7:  New sensor ID.  If this field in RECEIVER REQUEST is not 2^64 - 1, this is 0.
+				0-7:  This is the network ID.
 				8-31:  Reserved
 
 			Notes:
@@ -110,3 +133,9 @@ receiver implimentation rules:
 	This way, receivers can have multiple sensors to share the same frame ID.
 
 RX Indicators do not preserve frame IDs.
+
+The auto update function on the receiver will check every 30 minutes for a new version.  On finding that a new version has been pushed out, the program will attempt to execute an "update.sh" in it's working directory.  This "update.sh" shall download the sources, untar them, and compile them, then somehow restart the receiver program.
+
+Each tar must include a src folder and a Makefile.
+
+For historical purposes, each version's archive will be seperately named from the others.
