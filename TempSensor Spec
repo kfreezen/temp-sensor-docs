@@ -103,13 +103,38 @@ Revision 1:
 		Packet:
 			0-1:  Error number.
 			2-5:  Error specific data.
-			6-31:  Reserved.
+			6-13: dest_address
+			14-31:  Reserved for code globals.
 
 		Currently defined error numbers:
 			0x0000:  SUCCESS:  This should only be used during testing.
 			0x0001:  ADC_PVREF_TOO_LOW:  This must be sent when VREF+ does not arrive within 3.2% of 2.5V in 5 milliseconds.
 			0x0002:  ADC_CONVERSION_TIMEOUT:  This must be sent when a conversion is started, but does not end within 5 milliseconds.
-			
+	
+	DIAG REPORT (0x02):
+		This packet is usually used in conjunction with the ERROR REPORT packet.
+
+		Header:
+			Flags:
+				bit 0:  Reserved
+
+		Packet:
+			0-4:	PORTA, PORTB, PORTC, PORTD, PORTE
+			5-9:	TRISA, TRISB, TRISC, TRISD, TRISE
+			10-14:	ANSELA, ANSELB, ANSELC, ANSELD, ANSELE
+			15:		APFCON1
+			16:		BAUD1CON
+			17-18:	SP1BRGL, SP1BRGH
+			19-20:	RC1STA, TX1STA
+			21-22:	TMR1L, TMR1H
+			23-24:	T1CON, T1GCON
+			25:		OPTION_REG
+			26:		INTCON
+			27:		PIE1
+			28:		PIR1
+			29:		STATUS
+			30:		Reserved
+			31:		Reserved for extended diag report feature.
 Packets sent to the sensor:
 	Revision 0:
 		RECEIVER ACK (0x04):
